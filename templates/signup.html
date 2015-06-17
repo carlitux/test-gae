@@ -1,0 +1,43 @@
+
+<div data-ng-controller="RegistrationController">
+<form class="form-horizontal" ng-submit="doSignup()">
+  <fieldset>
+    <div id="legend">
+      <legend class="">Register</legend>
+    </div>
+    <div class="control-group">
+      <!-- Username -->
+      <label class="control-label"  for="username">Full name</label>
+      <div class="controls">
+        <input type="text" id="username" name="username" placeholder="" class="input-xlarge" ng-model="fullName">
+        <p class="help-block">{$ errors.full_name $}</p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- E-mail -->
+      <label class="control-label" for="email">E-mail</label>
+      <div class="controls">
+        <input type="text" id="email" name="email" placeholder="" class="input-xlarge" ng-model="email">
+        <p class="help-block">{$ errors.email $}</p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- Password-->
+      <label class="control-label" for="password">Password</label>
+      <div class="controls">
+        <input type="password" id="password" name="password" placeholder="" class="input-xlarge" ng-model="password">
+        <p class="help-block">{$ errors.password $}</p>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <!-- Button -->
+      <div class="controls">
+        <button class="btn btn-success" type="submit" ng-submit="doSignup()">Register</button>
+      </div>
+    </div>
+  </fieldset>
+</form>
+</div>

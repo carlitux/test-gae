@@ -1,0 +1,15 @@
+<table class="table">
+  <caption>Optional table caption.</caption>
+  <thead>
+    <tr>
+      <th>First Name</th>
+      <th>Email</th>
+    </tr>
+  </thead>
+  <tbody ng-repeat="user in users">
+    <tr>
+      <td>{$ user.full_name $}</td>
+      <td>{$ user.email $}</td>
+    </tr>
+  </tbody>
+</table>
