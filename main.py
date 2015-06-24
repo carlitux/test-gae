@@ -22,12 +22,19 @@ import json
 import webob
 
 from webapp2_extras.appengine.auth.models import User
-from webapp2_extras.appengine import auth
 from webapp2_extras import sessions
+from google.appengine.ext import db
 
 from wtforms.form import Form
 from wtforms import fields
 from wtforms import validators
+
+
+class Message(db.Model):
+    sender = db.EmailProperty()
+    recipient = db.EmailProperty()
+    body = db.TextProperty()
+    created_at = db.DateTimeProperty(auto_now_add=True)
 
 
 class UserForm(Form):
@@ -36,18 +43,15 @@ class UserForm(Form):
     password = fields.PasswordField(u'Password', validators=[validators.input_required()])
 
 
+class MessageForm(Form):
+    sender = fields.StringField(u'Sender', validators=[validators.input_required(), validators.Email()])
+    recipient = fields.StringField(u'Recipient', validators=[validators.input_required(), validators.Email()])
+    body = fields.TextField(u'Body', validators=[validators.input_required()])
+
+
 class LoginForm(Form):
     email = fields.StringField(u'Email', validators=[validators.input_required(), validators.Email()])
     password = fields.PasswordField(u'Password', validators=[validators.input_required()])
-
-
-class AuthMixin(object):
-
-    def get_auth(self):
-        user, token = self.request.get('email'), self.request.get('token')
-        if user and token:
-            print User.validate_token(token, 'test', user)
-            return User.get_by_auth_token(user, token)[0]
 
 
 class BaseHandler(webapp2.RequestHandler):
@@ -67,6 +71,11 @@ class BaseHandler(webapp2.RequestHandler):
         # Returns a session using the default cookie key.
         return self.session_store.get_session()
 
+    @webapp2.cached_property
+    def user(self):
+        auth_id = self.session.get('user', None)
+        if auth_id:
+            return User.get_by_auth_id(auth_id)
 
 
 JINJA_ENVIRONMENT = jinja2.Environment(
@@ -78,20 +87,50 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 class MainHandler(BaseHandler):
     def get(self):
         template = JINJA_ENVIRONMENT.get_template('index.html')
-        self.response.write(template.render({'user': self.session.get('user', ''), 'token': self.session.get('token', '')}))
+        self.response.write(template.render({'user': self.user}))
 
 
 class TemplateHandler(BaseHandler):
     def get(self, template_name):
         template = JINJA_ENVIRONMENT.get_template('templates/%s' % template_name)
-        self.response.write(template.render())
+        self.response.write(template.render({'user': self.user}))
 
 
-class UserHandler(BaseHandler, AuthMixin):
+class MessageHandler(BaseHandler):
     def get(self, _id=None):
-        user = self.get_auth()
-        if user:
-            pass
+        if self.user:
+            q = Message.gql('WHERE sender=:email', email=self.user.auth_ids[0])
+            response = [{'sender': message.sender, 'recipient': message.recipient, 'body': message.body} for message in q]
+
+            q = Message.gql('WHERE recipient=:email', email=self.user.auth_ids[0])
+            response.extend([{'sender': message.sender, 'recipient': message.recipient, 'body': message.body} for message in q])
+            self.response.headers.add_header('Content-Type', 'application/json')
+            self.response.write(json.dumps(response))
+        else:
+            self.response.set_status(403)
+
+    def post(self):
+        # set headers
+        # Just simple validation, this is not validating if user exists... just create the message
+        self.response.headers.add_header('Content-Type', 'application/json')
+        form = MessageForm(formdata=webob.multidict.MultiDict(json.loads(self.request.body or '{}')))
+        form.validate()
+        if form.errors:
+            self.response.set_status(400)
+            self.response.write(json.dumps(form.errors))
+        else:
+            m = Message(sender=form.sender.data, recipient=form.recipient.data, body=form.body.data)
+            m.put()
+            self.response.set_status(201)
+
+
+class UserHandler(BaseHandler):
+    def get(self, _id=None):
+        if self.user:
+            q = User.gql('')
+            response = [{'email': user.auth_ids[0], 'fullname': user.full_name} for user in q]
+            self.response.headers.add_header('Content-Type', 'application/json')
+            self.response.write(json.dumps(response))
         else:
             self.response.set_status(403)
 
@@ -135,19 +174,18 @@ class LoginHandler(BaseHandler):
             self.response.write(json.dumps(form.errors))
         else:
             try:
-                user = User.get_by_auth_password(form.email.data, form.password.data)
-                token = User.create_auth_token(form.email.data)
+                User.get_by_auth_password(form.email.data, form.password.data)
                 self.session['user'] = form.email.data
-                self.session['token'] = token
-                self.response.write(json.dumps({'token': token}))
-            except Exception, e:
+                self.response.write(json.dumps({'success': "Logged in"}))
+            except Exception:
                 self.response.set_status(400)
                 self.response.write(json.dumps({'error': "Login failed"}))
 
 
-class LogoutHandler(BaseHandler, AuthMixin):
+class LogoutHandler(BaseHandler):
     def get(self, _id=None):
-        User.delete_auth_token(self.request.get('email'), self.request.get('token'))
+        if 'user' in self.session:
+            del self.session['user']
 
 config = {}
 config['webapp2_extras.sessions'] = {
@@ -157,6 +195,7 @@ config['webapp2_extras.sessions'] = {
 app = webapp2.WSGIApplication([
     ('/templates/([^/]+)', TemplateHandler),
     ('/api/users/?', UserHandler),
+    ('/api/messages/?', MessageHandler),
     ('/api/login/?', LoginHandler),
     ('/api/logout/?', LogoutHandler),
     ('/.*', MainHandler),

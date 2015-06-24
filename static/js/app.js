@@ -1,3 +1,5 @@
+// Is not the best code, many validation are not done!
+
 angular.module('testExample', ['ngRoute', 'ngResource'])
   .config(function($interpolateProvider) {
     $interpolateProvider.startSymbol('{$');
@@ -34,7 +36,7 @@ angular.module('testExample', ['ngRoute', 'ngResource'])
        });
      }
  })
-
+ 
  .controller('LoginController', function($scope, $routeParams, $resource, $location) {
      $scope.email = '';
      $scope.password = '';
@@ -46,7 +48,7 @@ angular.module('testExample', ['ngRoute', 'ngResource'])
        var user = new Login({email: $scope.email, password: $scope.password});
        $scope.errors = {};
        user.$save(function(user) {
-         $location.path( "/" );
+          window.location.href = '/';
        }, function(response){
          for (key in response.data) {
            if (response.data[key].join)
@@ -58,6 +60,49 @@ angular.module('testExample', ['ngRoute', 'ngResource'])
      }
  })
 
+ .controller('LogoutController', function($scope, $routeParams, $resource, $location) {
+       var Logout = $resource('/api/logout');
+       var rootScope = angular.element('#main-container').scope();
+       rootScope.message = "You will be logged out soon."
+       Logout.get(function(data){
+          console.log(data);
+          window.location.href = '/';
+       });
+ })
+ 
+ .controller('MessageSendController', function($scope, $routeParams, $resource, $location) {
+     $scope.sender = '';
+     $scope.recipient = $routeParams.email;
+     $scope.body = '';
+     $scope.errors = {};
+
+     $scope.doSubmit = function (event) {
+       var Message = $resource('/api/messages');
+       var message = new Message({sender: $scope.sender, recipient: $scope.recipient, body: $scope.body})
+       $scope.errors = {};
+       message.$save(function(user) {
+         angular.element('#main-container').scope().message =  "Your message was sent successfully";
+         window.location.href = "/messages";
+       }, function(response){
+         for (key in response.data) {
+           if (response.data[key].join)
+             $scope.errors[key] = response.data[key].join(', ');
+           else
+             $scope.errors[key] = response.data[key];
+         }
+       });
+     }
+ })
+
+ .controller('MessagesController', function($scope, $routeParams, $resource, $location) {
+     var Message = $resource('/api/messages');
+     var rootScope = angular.element('#main-container').scope();
+
+     Message.query(function(data){
+       $scope.messages = data;
+     }, function(){ console.log(arguments); });
+ })
+
  .controller('HomeController', function($scope, $routeParams, $resource, $location) {
      $scope.name = "HomeController";
      $scope.params = $routeParams;
@@ -65,11 +110,9 @@ angular.module('testExample', ['ngRoute', 'ngResource'])
      var User = $resource('/api/users');
      var rootScope = angular.element('#main-container').scope();
 
-     if (rootScope.user && rootScope.token){
-       User.get({email: rootScope.user, token: rootScope.token}).$promise().$then(function(data){
-         console.log(data);
-       });
-     }
+     User.query(function(data){
+       $scope.users = data;
+     }, function(){ console.log(arguments); });
  })
 
 .config(function($routeProvider, $locationProvider) {
@@ -86,6 +129,7 @@ angular.module('testExample', ['ngRoute', 'ngResource'])
        }
      }
    })
+   
   .when('/signup', {
      templateUrl: 'templates/signup.html',
      controller: 'RegistrationController',
@@ -95,11 +139,27 @@ angular.module('testExample', ['ngRoute', 'ngResource'])
        }
     }
    })
+   
   .when('/login', {
     templateUrl: 'templates/login.html',
     controller: 'LoginController'
-  });
+  })
+  
+  .when('/message/:email', {
+    templateUrl: 'templates/message_form.html',
+    controller: 'MessageSendController'
+  })
+  
+  .when('/messages', {
+    templateUrl: 'templates/messages.html',
+    controller: 'MessagesController'
+  })
 
+  .when('/logout', {
+    templateUrl: 'templates/logout.html',
+    controller: 'LogoutController'
+  });
+  
   // configure html5 to get links working on jsfiddle
   $locationProvider.html5Mode(true);
 });

@@ -8,8 +8,9 @@
   </thead>
   <tbody ng-repeat="user in users">
     <tr>
-      <td>{$ user.full_name $}</td>
+      <td>{$ user.fullname $}</td>
       <td>{$ user.email $}</td>
+      <td><a href="/message/{$ user.email $}">Send message</a></td>
     </tr>
   </tbody>
 </table>
